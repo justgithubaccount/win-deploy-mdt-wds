@@ -1,5 +1,7 @@
 # mdt + wds
 
+> Вся инфра Майков строиться вокруг AD. Обьекты наполняют ее.
+
 - AutoMDTDeployment.ps1 from https://github.com/Tenaka/
 - Import-MDTApps.ps1 from https://github.com/DeploymentBunny/
 
