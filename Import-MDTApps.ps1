@@ -36,65 +36,18 @@ Function Import-MDTAppBulk {
 
 $SearchFolders = Get-ChildItem -Path $ImportFolder
 Foreach ($SearchFolder in $SearchFolders) {
-    foreach ($InstallFile in (Get-ChildItem -Path $SearchFolder.FullName *.wsf)) {
+    foreach ($InstallFile in Get-ChildItem -Path $SearchFolder.FullName -File) {
         $Install = $InstallFile.Name
         $InstallFolder = $InstallFile.DirectoryName
         $InstallLongAppName = $InstallFolder | Split-Path -Leaf
-        $InstallerType = $InstallFilet.Extension
-        $CommandLine = "cscript.exe $Install"
-        Write-Verbose "Installer is $Install"
-        Write-Verbose "InstallFolder is $InstallFolder"
-        Write-Verbose "InstallLongAppName is $InstallLongAppName"
-        Write-Verbose "InstallCommand is $CommandLine"
-        Write-Verbose ""
-        . Import-MDTAppBulk
-    }
-    foreach ($InstallFile in (Get-ChildItem -Path $SearchFolder.FullName *.exe)) {
-        $Install = $InstallFile.Name
-        $InstallFolder = $InstallFile.DirectoryName
-        $InstallLongAppName = $InstallFolder | Split-Path -Leaf
-        $InstallerType = $InstallFilet.Extension
-        $CommandLine = "$Install /q"
-        Write-Verbose "Installer is $Install"
-        Write-Verbose "InstallFolder is $InstallFolder"
-        Write-Verbose "InstallLongAppName is $InstallLongAppName"
-        Write-Verbose "InstallCommand is $CommandLine"
-        Write-Verbose ""
-        . Import-MDTAppBulk
-    }
-    foreach ($InstallFile in (Get-ChildItem -Path $SearchFolder.FullName *.msi)) {
-        $Install = $InstallFile.Name
-        $InstallFolder = $InstallFile.DirectoryName
-        $InstallLongAppName = $InstallFolder | Split-Path -Leaf
-        $InstallerType = $InstallFilet.Extension
-        $CommandLine = "msiexec.exe /i $Install /qn"
-        Write-Verbose "Installer is $Install"
-        Write-Verbose "InstallFolder is $InstallFolder"
-        Write-Verbose "InstallLongAppName is $InstallLongAppName"
-        Write-Verbose "InstallCommand is $CommandLine"
-        Write-Verbose ""
-        . Import-MDTAppBulk
-    }
-    foreach ($InstallFile in (Get-ChildItem -Path $SearchFolder.FullName *.msu)) {
-        $Install = $InstallFile.Name
-        $InstallFolder = $InstallFile.DirectoryName
-        $InstallLongAppName = $InstallFolder | Split-Path -Leaf
-        $InstallerType = $InstallFilet.Extension
-        $CommandLine = "wusa.exe $Install /Quiet /NoRestart"
-        Write-Verbose "Installer is $Install"
-        Write-Verbose "InstallFolder is $InstallFolder"
-        Write-Verbose "InstallLongAppName is $InstallLongAppName"
-        Write-Verbose "InstallCommand is $CommandLine"
-        Write-Verbose ""
-        . Import-MDTAppBulk
-
-    }
-    foreach ($InstallFile in (Get-ChildItem -Path $SearchFolder.FullName *.ps1)) {
-        $Install = $InstallFile.Name
-        $InstallFolder = $InstallFile.DirectoryName
-        $InstallLongAppName = $InstallFolder | Split-Path -Leaf
-        $InstallerType = $InstallFilet.Extension
-        $CommandLine = "PowerShell.exe -ExecutionPolicy ByPass -File $Install"
+        $CommandLine = switch ($InstallFile.Extension.ToLower()) {
+            '.wsf' { "cscript.exe $Install" }
+            '.exe' { "$Install /q" }
+            '.msi' { "msiexec.exe /i $Install /qn" }
+            '.msu' { "wusa.exe $Install /Quiet /NoRestart" }
+            '.ps1' { "PowerShell.exe -ExecutionPolicy ByPass -File $Install" }
+            default { continue }
+        }
         Write-Verbose "Installer is $Install"
         Write-Verbose "InstallFolder is $InstallFolder"
         Write-Verbose "InstallLongAppName is $InstallLongAppName"
