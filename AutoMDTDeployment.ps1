@@ -40,6 +40,32 @@ the network adapter and mass storage devices, the deployment will fail. Follow M
 
 #>
 
+param(
+    [Parameter()]
+    [string]$IPAddress = "192.0.2.5",
+
+    [Parameter()]
+    [string]$DefGate = "192.0.2.1",
+
+    [Parameter()]
+    [string]$dnsServer = "192.0.2.53",
+
+    [Parameter()]
+    [string]$scopeName = "MDT Client Deployment Scope",
+
+    [Parameter()]
+    [string]$DHCPStart = "192.0.2.230",
+
+    [Parameter()]
+    [string]$DHCPEnd = "192.0.2.240",
+
+    [Parameter()]
+    [string]$DHCPSub = "255.255.255.0",
+
+    [Parameter()]
+    [string]$dnsName = "corp.example.com"
+)
+
 if (-not([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator))
 { Write-Host "An elevated administrator account is required to run this script." -ForegroundColor Red }
 
@@ -64,8 +90,9 @@ else {
         if ($tpSoft -eq $true)
         { Write-Host "$software is present" -ForegroundColor Green }
         else {
-            Write-Host "$software is missing" -ForegroundColor red
-            Pause
+            Write-Host "$software is missing" -ForegroundColor Red
+            Read-Host -Prompt "Required software missing. Press Enter to exit"
+            exit 1
         }
     }
     #Hostname
@@ -76,28 +103,10 @@ else {
     $intAlias = $gNetAdp.InterfaceAlias
 
     $gNetIPC = Get-NetIPConfiguration -InterfaceAlias $gNetAdp.Name
-    $IPAddress = $gNetIPC.IPv4Address.ipaddress
-    $DHCPRouter = $gNetIPC.IPv4DefaultGateway.nexthop
-    $dnsAddress = $gNetIPC.dnsserver.serveraddresses
     
 
     $gNetIPC | Remove-NetIPAddress -Confirm:$false
     $gNetIPC.IPv4DefaultGateway | Remove-NetRoute -Confirm:$false -ErrorAction SilentlyContinue
-    
-    # Static IP
-    $IPAddress = "10.10.15.5"
-    $DefGate = "10.10.15.1"
-    $dnsServer = "10.10.15.10"
-
-    # DHCP
-    $ScopeID = "10.10.15.0"
-    $scopeName = "MDT Client Deployment Scope"
-    $DHCPStart = "10.10.15.230"
-    $DHCPEnd = "10.10.15.240"
-    $DHCPSub = "255.255.255.0"
-    $DefGate = "10.10.15.1"
-    $dnsServer = "10.10.15.10"
-    $dnsName = "corp.tst.com"
 
     #Set Static IP
     Write-Host "Setting static IP" -ForegroundColor Green
@@ -379,7 +388,7 @@ else {
     Add-Content -Path $cuSet -Value "FinishAction=REBOOT"
     Add-Content -Path $cuSet -Value " "
     Add-Content -Path $cuSet -Value "OrgName=RS"
-    Add-Content -Path $cuSet -Value "AdminPassword=Qwerty123"
+    Add-Content -Path $cuSet -Value "AdminPassword=PASSWORD"
     <#
     Add-Content -Path $cuSet -Value "AreaCode=020"
     Add-Content -Path $cuSet -Value "CountryCode=7"
@@ -399,7 +408,7 @@ else {
     Add-Content -Path $cuSet -Value " " 
     Add-Content -Path $cuSet -Value "'//MDT Monitoring and Update Server"
     Add-Content -Path $cuSet -Value "EventService=http://$IPAddress:9800"
-    Add-Content -Path $cuSet -Value "'//WSUSServer=http://192.168.0.85:8530"
+    Add-Content -Path $cuSet -Value "'//WSUSServer=http://192.0.2.3:8530"
     Add-Content -Path $cuSet -Value " "
 
     #Update BootStrap.ini
@@ -418,59 +427,23 @@ else {
     ############################################################################################
     ############################  SET BOOT MEDIA SETTINGS ######################################
     ############################################################################################
+
+    function Update-SettingsXml {
+        param([string]$Path, [string]$HostName)
+        $content = Get-Content $Path
+        $content = $content.Replace('Boot.x64.ScratchSpace>32</Boot.x64.ScratchSpace', 'Boot.x64.ScratchSpace>512</Boot.x64.ScratchSpace')
+        $content = $content.Replace('Boot.x64.GenerateGenericWIM>False</Boot.x64.GenerateGenericWIM', 'Boot.x64.GenerateGenericWIM>True</Boot.x64.GenerateGenericWIM')
+        $content = $content.Replace('Boot.x64.SelectionProfile>All Drivers and Packages</Boot.x64.SelectionProfile', 'Boot.x64.SelectionProfile>Win10-Drivers</Boot.x64.SelectionProfile')
+        $content = $content.Replace('<MonitorHost>', "`<MonitorHost>$HostName")
+        $content | Set-Content $Path -Force
+    }
+
     Write-Host "Update the configuraton settings in the workbench" -ForegroundColor Green
     $mdtSetSrc = "C:\Program Files\Microsoft Deployment Toolkit\Templates\"
     Copy-Item $mdtSetSrc\Settings.xml $mdtSetSrc\Settings-backup.xml -Force
-
-    #UPDATE TEMPLATE SOURCE - Update template source Settings.xml or MDTRoot\Control\Settings.xml will revert 
-
-    #Update Settings.xml to set x64 boot media settings
-    $gcSettings = Get-Content $mdtSetSrc\Settings.xml 
-    $gcSettings.Replace('Boot.x64.ScratchSpace>32</Boot.x64.ScratchSpace', 'Boot.x64.ScratchSpace>512</Boot.x64.ScratchSpace') | 
-    Out-File $mdtSetSrc\Settings.xml -Force
-
-    $gcSettings = Get-Content $mdtSetSrc\Settings.xml 
-    $gcSettings.Replace('Boot.x64.GenerateGenericWIM>False</Boot.x64.GenerateGenericWIM', 'Boot.x64.GenerateGenericWIM>True</Boot.x64.GenerateGenericWIM') | 
-    Out-File $mdtSetSrc\Settings.xml -Force
-
-    $gcSettings = Get-Content $mdtSetSrc\Settings.xml 
-    $gcSettings.Replace('Boot.x64.SelectionProfile>All Drivers and Packages</Boot.x64.SelectionProfile', 'Boot.x64.SelectionProfile>Win10-Drivers</Boot.x64.SelectionProfile') | 
-    Out-File $mdtSetSrc\Settings.xml -Force
-
-    $gcSettings = Get-Content $mdtSetSrc\Settings.xml 
-    $gcSettings.Replace('Boot.x64.GenerateGenericWIM>False</Boot.x64.GenerateGenericWIM', 'Boot.x64.GenerateGenericWIM>True</Boot.x64.GenerateGenericWIM') | 
-    Out-File $mdtSetSrc\Settings.xml -Force
-
-    #Enable monitoring as the enable-MDTMonitoing command does not work everytime
-    $gcSettings = Get-Content $mdtSetSrc\Settings.xml 
-    $gcSettings.Replace('<MonitorHost>', "`<MonitorHost>$hostn") | 
-    Out-File $mdtSetSrc\Settings.xml -Force
-
-    #UPDATE SETTINGS.XML - Update settings.xml referenced during deployment, cant wait for previous update to be processed and will now revert with correct settings.
- 
     Copy-Item $mdtRoot\Control\Settings.xml $mdtRoot\Control\Settings-backup.xml -Force
-
-    #Update Settings.xml to set x64 boot media settings
-    $gcSettings = Get-Content $mdtRoot\Control\Settings.xml 
-    $gcSettings.Replace('Boot.x64.ScratchSpace>32</Boot.x64.ScratchSpace', 'Boot.x64.ScratchSpace>512</Boot.x64.ScratchSpace') | 
-    Out-File $mdtRoot\Control\Settings.xml -Force
-
-    $gcSettings = Get-Content $mdtRoot\Control\Settings.xml
-    $gcSettings.Replace('Boot.x64.GenerateGenericWIM>False</Boot.x64.GenerateGenericWIM', 'Boot.x64.GenerateGenericWIM>True</Boot.x64.GenerateGenericWIM') | 
-    Out-File $mdtRoot\Control\Settings.xml -Force
-
-    $gcSettings = Get-Content $mdtRoot\Control\Settings.xml
-    $gcSettings.Replace('Boot.x64.SelectionProfile>All Drivers and Packages</Boot.x64.SelectionProfile', 'Boot.x64.SelectionProfile>Win10-Drivers</Boot.x64.SelectionProfile') | 
-    Out-File $mdtRoot\Control\Settings.xml -Force
-
-    $gcSettings = Get-Content $mdtRoot\Control\Settings.xml
-    $gcSettings.Replace('Boot.x64.GenerateGenericWIM>False</Boot.x64.GenerateGenericWIM', 'Boot.x64.GenerateGenericWIM>True</Boot.x64.GenerateGenericWIM') | 
-    Out-File $mdtRoot\Control\Settings.xml -Force
-
-    #Enable monitoring as the enable-MDTMonitoing command does not work everytime
-    $gcSettings = Get-Content $mdtRoot\Control\Settings.xml
-    $gcSettings.Replace('<MonitorHost>', "`<MonitorHost>$hostn") | 
-    Out-File $mdtRoot\Control\Settings.xml -Force
+    Update-SettingsXml -Path "$mdtSetSrc\Settings.xml" -HostName $hostn
+    Update-SettingsXml -Path "$mdtRoot\Control\Settings.xml" -HostName $hostn
 
     ############################################################################################
     ########################  CREATE BOOT MEDIA, IMPORT AND INIT WDS  ##########################
